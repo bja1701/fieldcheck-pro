@@ -247,8 +247,8 @@ def scrape_spec(state: FieldCheckState) -> dict:
             "spec_items": [],
         }
 
-    if output_dir:
-        spec_items = _download_images(spec_items, output_dir)
+    # image_url is the full Specbooks CDN URL — keep it as-is so it works
+    # from Vercel and any browser. Local downloading breaks Vercel deployments.
 
     return {
         "spec_items": spec_items,

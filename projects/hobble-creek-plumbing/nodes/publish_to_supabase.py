@@ -40,17 +40,19 @@ def _upload_images(output_data: dict, output_dir: str, project_id: str,
             storage_path = f"{project_id}/{relative_path}"
             upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{storage_path}"
 
-            with open(file_path, "rb") as f:
-                resp = requests.post(
-                    upload_url,
-                    headers={
-                        "apikey": service_key,
-                        "Authorization": f"Bearer {service_key}",
-                        "x-upsert": "true",
-                    },
-                    files={"file": (file_path.name, f)},
-                    timeout=30,
-                )
+            suffix = file_path.suffix.lower()
+            content_type = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
+            resp = requests.post(
+                upload_url,
+                headers={
+                    "apikey": service_key,
+                    "Authorization": f"Bearer {service_key}",
+                    "Content-Type": content_type,
+                    "x-upsert": "true",
+                },
+                data=file_path.read_bytes(),
+                timeout=30,
+            )
             if resp.ok:
                 return f"{supabase_url}/storage/v1/object/public/{bucket}/{storage_path}"
             return relative_path

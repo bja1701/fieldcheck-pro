@@ -181,6 +181,13 @@ def _build_room_match(
         else:
             unconfirmed_bid.append(bid)
 
+    # Deduplicate by name — parse_bid can produce duplicate rows from repeated
+    # XLSM sections; keep last occurrence (consistent with bid_by_name dict)
+    _seen: dict[str, dict] = {}
+    for b in unconfirmed_bid:
+        _seen[b["name"]] = b
+    unconfirmed_bid = list(_seen.values())
+
     # Gemini matching
     if unconfirmed_bid:
         if room_spec:

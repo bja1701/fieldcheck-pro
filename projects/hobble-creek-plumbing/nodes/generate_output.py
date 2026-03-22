@@ -215,6 +215,16 @@ def generate_output(state: FieldCheckState) -> dict:
         if not room_items:
             continue
 
+        # Deduplicate by bid_name — parse_bid can produce repeated rows from
+        # multi-section XLSM sheets; keep first occurrence per name.
+        _seen_names: set[str] = set()
+        deduped: list[dict] = []
+        for it in room_items:
+            if it.get("bid_name") not in _seen_names:
+                _seen_names.add(it["bid_name"])
+                deduped.append(it)
+        room_items = deduped
+
         pages = _cabinet_pages_for_room(bid_room, cabinet_map, room_map)
         cabinet_images = [f"cabinet_images/page-{p:02d}.png" for p in pages]
         floor = _floor_for_room(bid_room, rooms_state)

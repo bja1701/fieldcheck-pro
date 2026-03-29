@@ -1,0 +1,15 @@
+// FieldCheck Pro — Supabase Configuration
+// Fill in your project URL and anon key, then save.
+// Get these from: Supabase Dashboard → Project Settings → API
+//
+// IMPORTANT: Do NOT commit this file to git if it contains real keys.
+// Add supabase-config.js to your .gitignore.
+
+window.SUPABASE_URL     = 'https://ftidlgjmtiyuxycaacob.supabase.co';
+window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0aWRsZ2ptdGl5dXh5Y2FhY29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzM1MTcsImV4cCI6MjA4ODY0OTUxN30.z_v4ygq326LhlXNrdXiGokAISYF9K63_rm2GE2xZzY8';
+
+// API server URL — your named Cloudflare tunnel URL.
+// After running `api/TUNNEL_SETUP.md` step 2, paste your stable tunnel URL here.
+// Format: https://<your-tunnel-uuid>.cfargotunnel.com
+// This value is permanent once the named tunnel is created.
+window.API_SERVER_URL = 'REPLACE_WITH_TUNNEL_URL';

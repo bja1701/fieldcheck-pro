@@ -30,22 +30,44 @@ from state import FieldCheckState
 CONFIRMED_MATCHES_PATH = Path("projects/hobble-creek-plumbing/confirmed_matches.json")
 CONFIDENCE_THRESHOLD = 0.85
 SPEC_ONLY_NOTE = "spec_only"
+PLAN_SOURCED_NOTE = "plan_sourced"
+
+# Items that come from architectural plans (not spec books).
+# Never compare against spec book — skip Gemini for these entirely.
+PLAN_SOURCED_PATTERNS = re.compile(
+    r"^(hose\s*bib|hot[/\s]*cold\s*hose\s*bib|washer\s*box|ice\s*bin|"
+    r"refrigerator|refridgerator|dog\s*wash)",
+    re.IGNORECASE,
+)
+
+
+def _is_plan_sourced(name: str) -> bool:
+    """Return True if this bid item comes from plans (not spec book)."""
+    return bool(PLAN_SOURCED_PATTERNS.match(name.strip()))
+
 
 BILLING_RULES = """
 BILLING RULES (follow exactly when choosing the PRIMARY spec item):
 - "Lav"               → PRIMARY: faucet or widespread faucet (NOT sink bowl — sub-item)
 - "Shower"            → PRIMARY: showerhead or raincan (NOT valve/trim/handle/diverter — sub-items)
+                        Shower arm is a SUB-ITEM under Shower, NOT a standalone primary
 - "Tub/Shower"        → PRIMARY: showerhead (bathtub is a sub-item)
+                        Tub spout is a SUB-ITEM under Tub/Shower, NOT a standalone primary
 - "Shower (2nd Head)" → PRIMARY: slide bar or hand shower wand
 - "Slide Bar"         → PRIMARY: slide bar or hand shower wand
+                        Hand shower outlet is a SUB-ITEM under Slide Bar, NOT standalone
 - "Tub (freestanding)"→ PRIMARY: soaking tub or roman tub faucet
+                        Tub spout is a SUB-ITEM here too
 - "Steam Shower"      → PRIMARY: steam generator
 - "Sink (Kitchen)"    → PRIMARY: kitchen faucet or prep faucet
 - "Drinking Fountain" → PRIMARY: bottle filling station
 - "Toilet"            → PRIMARY: the toilet itself
 - "Hose Bib"          → PRIMARY: hose bib or outdoor faucet
-- "Urinal"            → PRIMARY: the urinal itself
-- Sub-items (valve rough, trim kit, handle kit, drain, sink bowl, faucet arm, flush valve) come AFTER primary
+- "Urinal"            → PRIMARY: the urinal fixture itself (Toto, American Standard, Kohler, etc.)
+                        Match ANY spec item with "urinal" in its name — even from a different room section
+- Sub-items (valve rough, trim kit, handle kit, drain, sink bowl, faucet arm, flush valve,
+             shower arm, tub spout, hand shower outlet, rough-in valve) come AFTER primary
+- Rough-in valves are always sub-items — never match a bid item to a rough-in valve as primary
 """
 
 
@@ -140,6 +162,40 @@ def _retry_call(fn, max_retries: int = 3):
                 raise
 
 
+def _fix_unmatched_urinals(matched: list[dict], all_spec_items: list[dict]) -> list[dict]:
+    """Cross-room fallback: if a 'Urinal' bid item has no spec match, search all spec items.
+
+    Scott's Meeting 2 bug: urinals appeared in spec book rooms that weren't mapped
+    to the bid room containing the Urinal bid item. This fallback ensures urinals
+    are always matched when a matching spec item exists anywhere in the spec book.
+    """
+    urinal_specs = [
+        s for s in all_spec_items
+        if "urinal" in s.get("name", "").lower()
+    ]
+    if not urinal_specs:
+        return matched
+
+    result: list[dict] = []
+    for m in matched:
+        if (
+            m.get("bid_name", "").lower() == "urinal"
+            and not m.get("spec_items")
+            and m.get("notes") != SPEC_ONLY_NOTE
+            and m.get("notes") != PLAN_SOURCED_NOTE
+        ):
+            spec = urinal_specs[0]
+            result.append({
+                **m,
+                "spec_items": [{**spec, "is_primary": True}],
+                "confidence": 0.9,
+                "notes": "urinal matched via cross-room fallback",
+            })
+        else:
+            result.append(m)
+    return result
+
+
 def _build_room_match(
     room: str,
     room_bid: list[dict],
@@ -152,9 +208,30 @@ def _build_room_match(
     matched: list[dict] = []
     review: list[dict] = []
 
+    # Plan-sourced items bypass Gemini entirely — they come from plans, not spec books.
+    # Add them directly with no spec match and a "plan_sourced" note.
+    plan_sourced_bid: list[dict] = []
+    spec_matched_bid: list[dict] = []
+    for bid in room_bid:
+        if _is_plan_sourced(bid["name"]):
+            plan_sourced_bid.append(bid)
+        else:
+            spec_matched_bid.append(bid)
+
+    for bid in plan_sourced_bid:
+        matched.append({
+            "room": room,
+            "bid_name": bid["name"],
+            "bid_qty": bid.get("bid_qty", 1),
+            "unit_price": bid.get("unit_price"),
+            "spec_items": [],
+            "confidence": 1.0,
+            "notes": PLAN_SOURCED_NOTE,
+        })
+
     # Confirmed matches
     unconfirmed_bid: list[dict] = []
-    for bid in room_bid:
+    for bid in spec_matched_bid:
         key = f"{room}:{bid['name']}"
         if key in confirmed:
             c = confirmed[key]
@@ -260,6 +337,7 @@ def _build_room_match(
 def match_items(state: FieldCheckState) -> dict:
     bid_items = state.get("bid_items", [])
     spec_items = state.get("spec_items", [])
+    room_map = state.get("room_map", {})
 
     if not bid_items:
         return {
@@ -267,6 +345,21 @@ def match_items(state: FieldCheckState) -> dict:
             "matched_items": [],
             "review_queue": [],
         }
+
+    # Apply room_map translation: spec items stored with raw spec room names
+    # (those not in scrape_spec's hardcoded ROOM_MAP) get translated to bid room names.
+    # Items already carrying a bid room name are left unchanged.
+    if room_map:
+        remapped: list[dict] = []
+        for item in spec_items:
+            raw = item["room"]
+            if raw in room_map:
+                bid_room = room_map[raw]
+                if bid_room:  # None means genuinely unmappable — discard
+                    remapped.append({**item, "room": bid_room})
+            else:
+                remapped.append(item)  # Already has a bid room name from ROOM_MAP
+        spec_items = remapped
 
     confirmed = _load_confirmed()
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
@@ -300,11 +393,16 @@ def match_items(state: FieldCheckState) -> dict:
         all_matched.extend(room_matched)
         all_review.extend(room_review)
 
+    # Cross-room urinal fallback: fix unmatched "Urinal" bid items using any
+    # urinal spec item in the spec book (urinals are often in unmapped rooms).
+    all_matched = _fix_unmatched_urinals(all_matched, spec_items)
+
     spec_only_count = sum(1 for m in all_matched if m["notes"] == SPEC_ONLY_NOTE)
-    bid_count = len(all_matched) - spec_only_count
+    plan_sourced_count = sum(1 for m in all_matched if m["notes"] == PLAN_SOURCED_NOTE)
+    bid_count = len(all_matched) - spec_only_count - plan_sourced_count
     logs = [
         f"match_items: {bid_count} bid matches, {spec_only_count} spec_only, "
-        f"{len(all_review)} flagged for review"
+        f"{plan_sourced_count} plan_sourced, {len(all_review)} flagged for review"
     ]
 
     return {

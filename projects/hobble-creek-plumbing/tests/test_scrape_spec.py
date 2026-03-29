@@ -151,10 +151,12 @@ class TestScrapeSpecMocked:
 
 
 class TestConvert:
-    def test_unknown_room_skipped(self):
-        all_specs = {"UNKNOWN ROOM": [{"manufacturerName": "X", "name": "Y", "modelNumber": "Z", "qty": 1, "imageName": ""}]}
+    def test_unknown_room_kept_with_raw_name(self):
+        """Rooms not in ROOM_MAP are stored with their raw spec room name for map_rooms AI to translate."""
+        all_specs = {"OWNERS SUITE": [{"manufacturerName": "X", "name": "Y", "modelNumber": "Z", "qty": 1, "imageName": ""}]}
         items = _convert(all_specs, [])
-        assert items == []
+        assert len(items) == 1
+        assert items[0]["room"] == "OWNERS SUITE"
 
     def test_known_room_mapped(self):
         all_specs = {"MASTER BATH": [{"manufacturerName": "Brizo", "name": "Faucet", "modelNumber": "ABC", "qty": 1, "imageName": ""}]}

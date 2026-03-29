@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FieldCheck Pro — Projects</title>
+    <meta name="description" content="FieldCheck Pro project dashboard.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="supabase-config.js"></script>
+    <style>
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        [x-cloak] { display: none !important; }
+        input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
+
+        /* Skeleton shimmer */
+        @keyframes shimmer {
+            0%   { background-position: -400px 0; }
+            100% { background-position: 400px 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 400px 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 8px;
+        }
+
+        /* File input styling */
+        input[type="file"]::file-selector-button {
+            background: #eef2ff;
+            color: #4f46e5;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background 0.15s;
+        }
+        input[type="file"]::file-selector-button:hover { background: #e0e7ff; }
+
+        /* Button active state */
+        button:active:not(:disabled) { transform: scale(0.98); }
+        a:active { transform: scale(0.98); }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen" x-data="projectsApp()" x-init="init()">
+
+    <!-- ── INITIAL LOADING SCREEN (shown immediately, before Alpine) ───────── -->
+    <div id="initial-loader" class="min-h-screen bg-slate-50">
+        <div class="bg-gradient-to-r from-slate-900 to-indigo-900 px-4 py-3 shadow-lg">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div>
+                    <div class="h-5 w-32 skeleton mb-1"></div>
+                    <div class="h-3 w-16 skeleton"></div>
+                </div>
+                <div class="h-7 w-20 rounded-lg skeleton opacity-30"></div>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto p-4 pt-8">
+            <div class="flex justify-between items-center mb-6">
+                <div class="h-7 w-40 skeleton"></div>
+                <div class="h-10 w-36 rounded-lg skeleton"></div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="bg-white rounded-xl border border-slate-200 p-5">
+                    <div class="flex justify-between mb-4"><div class="h-5 w-20 skeleton"></div><div class="h-4 w-24 skeleton"></div></div>
+                    <div class="h-5 w-40 skeleton mb-2"></div>
+                    <div class="h-4 w-32 skeleton mb-6"></div>
+                    <div class="flex gap-2"><div class="flex-1 h-10 skeleton rounded-lg"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MAIN APP (hidden until Alpine ready) ──────────────────────────── -->
+    <div x-cloak>
+
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-slate-900 to-indigo-900 text-white px-4 py-3 shadow-lg sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto flex justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <svg class="w-6 h-6 text-indigo-300 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <h1 class="text-base font-bold tracking-tight leading-tight">FieldCheck Pro</h1>
+                        <p class="text-xs font-medium text-indigo-300 leading-tight" x-text="user?.email || 'Projects'"></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="showPasswordModal = true"
+                            class="text-xs font-semibold text-indigo-300 hover:text-white border border-indigo-500 border-opacity-40 hover:border-opacity-70 px-3 py-2 rounded-lg transition-all min-h-[36px]">
+                        Change Password
+                    </button>
+                    <button @click="signOut"
+                            class="text-xs font-semibold text-indigo-300 hover:text-white border border-indigo-500 border-opacity-40 hover:border-opacity-70 px-3 py-2 rounded-lg transition-all min-h-[36px]">
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto p-4">
+
+            <!-- Page header -->
+            <div class="flex items-center justify-between mb-6 mt-3">
+                <h2 class="text-slate-900 font-bold text-xl">Projects</h2>
+                <button @click="openNewProject()"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all flex items-center gap-2 min-h-[44px] shadow-sm shadow-indigo-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Project
+                </button>
+            </div>
+
+            <!-- Loading skeletons -->
+            <div x-show="loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="i in 2" :key="i">
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex justify-between mb-4"><div class="h-5 w-20 skeleton"></div><div class="h-4 w-24 skeleton"></div></div>
+                        <div class="h-5 w-3/4 skeleton mb-2"></div>
+                        <div class="h-4 w-1/2 skeleton mb-6"></div>
+                        <div class="flex gap-2"><div class="flex-1 h-10 skeleton rounded-lg"></div></div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="!loading && projects.length === 0" x-cloak
+                 class="text-center py-24 px-4">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-indigo-50 rounded-3xl mb-6">
+                    <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/>
+                    </svg>
+                </div>
+                <h3 class="text-slate-800 font-bold text-xl mb-2">No projects yet</h3>
+                <p class="text-slate-400 text-sm mb-8 max-w-xs mx-auto">Upload your job documents and let the pipeline do the heavy lifting.</p>
+                <button @click="openNewProject()"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all min-h-[48px] shadow-sm shadow-indigo-200">
+                    Create Your First Project
+                </button>
+            </div>
+
+            <!-- Project cards -->
+            <div x-show="!loading && projects.length > 0" x-cloak
+                 class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="project in projects" :key="project.id">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col">
+                        <div class="p-5 flex-1">
+                            <!-- Status + date row -->
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                                      :class="statusClasses(project.status)">
+                                    <!-- Status dot -->
+                                    <span class="w-1.5 h-1.5 rounded-full"
+                                          :class="statusDot(project.status)"></span>
+                                    <span x-text="statusLabel(project.status)"></span>
+                                </span>
+                                <span class="text-xs text-slate-400 tabular-nums" x-text="formatDate(project.created_at)"></span>
+                            </div>
+
+                            <!-- Job name -->
+                            <h3 class="text-slate-900 font-bold text-base leading-snug mb-1 line-clamp-2" x-text="project.name"></h3>
+
+                            <!-- Client -->
+                            <p class="text-slate-500 text-sm truncate mb-0.5" x-show="project.client" x-text="project.client"></p>
+
+                            <!-- Address -->
+                            <p class="text-slate-400 text-xs truncate mb-3" x-show="project.address" x-text="project.address"></p>
+
+                            <!-- Phase chip -->
+                            <div x-show="project.phase">
+                                <span class="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full capitalize" x-text="project.phase"></span>
+                            </div>
+                        </div>
+
+                        <!-- Card footer -->
+                        <div class="px-5 pb-5 flex gap-2 border-t border-slate-100 pt-4">
+                            <button @click="openJob(project)"
+                                    class="flex-1 text-center text-sm font-semibold py-2.5 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors min-h-[44px]">
+                                <span x-show="project.status === 'processing' || project.status === 'pending'">View Progress</span>
+                                <span x-show="project.status !== 'processing' && project.status !== 'pending'">View Details</span>
+                            </button>
+                            <a x-show="project.status === 'review' || project.status === 'complete'"
+                               :href="'bid-check.html?id=' + project.id"
+                               class="flex-1 text-center text-sm font-bold py-2.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors min-h-[44px] flex items-center justify-center">
+                                Bid Check
+                            </a>
+                            <button @click="deleteProject(project)"
+                                    class="text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-200 hover:border-red-200 p-2.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                    title="Delete project">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </main>
+    </div>
+
+    <!-- ── NEW PROJECT MODAL ───────────────────────────────────────────────── -->
+    <div x-show="showModal" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-slate-900/75 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm"
+         @keydown.escape.window="closeModal()">
+
+        <div class="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[92vh]"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="translate-y-4 sm:translate-y-0 sm:scale-95 opacity-0"
+             x-transition:enter-end="translate-y-0 sm:scale-100 opacity-100"
+             @click.outside="closeModal()">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-lg leading-tight">New Project</h3>
+                    <p class="text-slate-400 text-xs mt-0.5">Upload documents to start the pipeline</p>
+                </div>
+                <button @click="closeModal()" :disabled="submitting"
+                        class="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-40">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Scrollable body -->
+            <form @submit.prevent="submitProject" class="overflow-y-auto flex-1">
+                <div class="p-6 space-y-6">
+
+                    <!-- Error -->
+                    <div x-show="formError" x-cloak
+                         class="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+                        <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                        </svg>
+                        <span x-text="formError"></span>
+                    </div>
+
+                    <!-- ── JOB DETAILS ── -->
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Job Details</p>
+                        <div class="space-y-4">
+
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+                                    Job Name <span class="text-red-400">*</span>
+                                </label>
+                                <input type="text" x-model="form.name" required
+                                       placeholder="e.g. Baker Residence"
+                                       class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 bg-slate-50 focus:bg-white transition-all">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">Client Name</label>
+                                    <input type="text" x-model="form.client"
+                                           placeholder="e.g. Hobble Creek"
+                                           class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 bg-slate-50 focus:bg-white transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">Phase</label>
+                                    <select x-model="form.phase"
+                                            class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 bg-slate-50 focus:bg-white transition-all">
+                                        <option value="rough-in">Rough-In</option>
+                                        <option value="trim">Trim</option>
+                                        <option value="finish">Finish</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Job Address</label>
+                                <input type="text" x-model="form.address"
+                                       placeholder="123 Main St, Springville, UT"
+                                       class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 bg-slate-50 focus:bg-white transition-all">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Notes</label>
+                                <textarea x-model="form.notes" rows="2"
+                                          placeholder="Any notes for this job…"
+                                          class="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 bg-slate-50 focus:bg-white transition-all resize-none"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── DOCUMENTS ── -->
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Documents</p>
+                        <p class="text-xs text-slate-400 mb-4">All four required · PDFs up to ~50 MB each</p>
+
+                        <div class="space-y-3">
+                            <!-- Spec URL -->
+                            <div class="rounded-xl border border-slate-200 p-4 bg-slate-50">
+                                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/>
+                                    </svg>
+                                    Spec Book URL <span class="text-red-400">*</span>
+                                </label>
+                                <input type="url" x-model="form.specUrl" required
+                                       placeholder="https://supplier.com/spec/baker-job"
+                                       class="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 bg-white focus:bg-white transition-all">
+                            </div>
+
+                            <!-- Bid spreadsheet -->
+                            <div class="rounded-xl border border-slate-200 p-4 bg-slate-50"
+                                 :class="form.bidFile ? 'border-green-300 bg-green-50' : ''">
+                                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0118 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 7.746 6 7.125v-1.5M4.875 8.25C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0118 7.125v-1.5m1.125 2.625c-.621 0-1.125.504-1.125 1.125v1.5m2.625-2.625c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 016 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-7.5-3h6.75"/>
+                                    </svg>
+                                    Bid Spreadsheet <span class="text-red-400">*</span>
+                                    <span class="font-normal text-slate-400 ml-1">.xlsx, .xlsm, or .csv</span>
+                                </label>
+                                <input type="file" accept=".xlsx,.xlsm,.csv" required
+                                       @change="form.bidFile = $event.target.files[0]"
+                                       class="w-full text-sm text-slate-600 cursor-pointer">
+                                <p x-show="form.bidFile" x-cloak
+                                   class="text-xs text-green-700 font-medium mt-1.5 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    <span x-text="form.bidFile?.name"></span>
+                                </p>
+                            </div>
+
+                            <!-- Plans PDF -->
+                            <div class="rounded-xl border border-slate-200 p-4 bg-slate-50"
+                                 :class="form.plansFile ? 'border-green-300 bg-green-50' : ''">
+                                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                                    </svg>
+                                    House Plans PDF <span class="text-red-400">*</span>
+                                </label>
+                                <input type="file" accept=".pdf" required
+                                       @change="form.plansFile = $event.target.files[0]"
+                                       class="w-full text-sm text-slate-600 cursor-pointer">
+                                <p x-show="form.plansFile" x-cloak
+                                   class="text-xs text-green-700 font-medium mt-1.5 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    <span x-text="form.plansFile?.name"></span>
+                                </p>
+                            </div>
+
+                            <!-- Cabinets PDF -->
+                            <div class="rounded-xl border border-slate-200 p-4 bg-slate-50"
+                                 :class="form.cabinetsFile ? 'border-green-300 bg-green-50' : ''">
+                                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                                    </svg>
+                                    Cabinet Drawings PDF <span class="text-red-400">*</span>
+                                </label>
+                                <input type="file" accept=".pdf" required
+                                       @change="form.cabinetsFile = $event.target.files[0]"
+                                       class="w-full text-sm text-slate-600 cursor-pointer">
+                                <p x-show="form.cabinetsFile" x-cloak
+                                   class="text-xs text-green-700 font-medium mt-1.5 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    <span x-text="form.cabinetsFile?.name"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload progress -->
+                    <div x-show="uploading" x-cloak class="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                        <div class="flex justify-between items-center text-sm font-semibold text-indigo-700 mb-2">
+                            <span x-text="uploadStatus"></span>
+                            <span x-text="uploadPct + '%'" class="tabular-nums"></span>
+                        </div>
+                        <div class="w-full bg-indigo-100 rounded-full h-2">
+                            <div class="bg-indigo-500 h-2 rounded-full transition-all duration-500"
+                                 :style="'width:' + uploadPct + '%'"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Sticky footer with submit -->
+                <div class="px-6 pb-6 pt-2 border-t border-slate-100 shrink-0 bg-white">
+                    <button type="submit" :disabled="submitting || !formReady"
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2 min-h-[52px] shadow-sm shadow-indigo-200">
+                        <svg x-show="submitting" x-cloak class="animate-spin w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <svg x-show="!submitting" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/>
+                        </svg>
+                        <span x-text="submitting ? uploadStatus : 'Create Project & Start Pipeline'"></span>
+                    </button>
+                    <p class="text-center text-xs text-slate-400 mt-3" x-show="!submitting">
+                        Files upload securely — pipeline runs automatically
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div x-show="showPasswordModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+        <div class="absolute inset-0 bg-slate-900 bg-opacity-60 backdrop-blur-sm" @click="showPasswordModal = false; passwordError = ''; passwordSuccess = false;"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+            <h3 class="font-bold text-slate-900 text-lg mb-4">Change Password</h3>
+
+            <div x-show="passwordSuccess" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium">
+                Password updated successfully!
+            </div>
+            <div x-show="passwordError" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600" x-text="passwordError"></div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">New Password</label>
+                    <input type="password" x-model="passwordForm.newPassword" placeholder="At least 8 characters"
+                           class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Confirm Password</label>
+                    <input type="password" x-model="passwordForm.confirmPassword" placeholder="Repeat new password"
+                           @keydown.enter="changePassword()"
+                           class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition">
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-5">
+                <button @click="showPasswordModal = false; passwordError = ''; passwordForm = { newPassword: '', confirmPassword: '' };"
+                        class="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition">
+                    Cancel
+                </button>
+                <button @click="changePassword()"
+                        class="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition">
+                    Update Password
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Hide initial loader once Alpine takes over
+        document.addEventListener('alpine:initialized', () => {
+            const loader = document.getElementById('initial-loader');
+            if (loader) loader.remove();
+        });
+
+        function projectsApp() {
+            return {
+                supabase: null,
+                user: null,
+                projects: [],
+                loading: true,
+                showModal: false,
+                showPasswordModal: false,
+                passwordForm: { newPassword: '', confirmPassword: '' },
+                passwordError: '',
+                passwordSuccess: false,
+                submitting: false,
+                uploading: false,
+                uploadPct: 0,
+                uploadStatus: 'Preparing…',
+                formError: '',
+                form: {
+                    name: '', client: '', address: '', phase: 'rough-in',
+                    notes: '', specUrl: '', bidFile: null, plansFile: null, cabinetsFile: null,
+                },
+
+                get formReady() {
+                    return this.form.name.trim() && this.form.specUrl.trim() &&
+                           this.form.bidFile && this.form.plansFile && this.form.cabinetsFile;
+                },
+
+                async init() {
+                    this.supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+                    const { data: { session } } = await this.supabase.auth.getSession();
+                    if (!session) { window.location.replace('login.html'); return; }
+                    this.user = session.user;
+                    await this.loadProjects();
+                },
+
+                async loadProjects() {
+                    this.loading = true;
+                    const { data, error } = await this.supabase
+                        .from('projects').select('*').order('created_at', { ascending: false });
+                    if (!error) this.projects = data || [];
+                    this.loading = false;
+                },
+
+                async signOut() {
+                    await this.supabase.auth.signOut();
+                    window.location.replace('login.html');
+                },
+
+                async changePassword() {
+                    this.passwordError = '';
+                    this.passwordSuccess = false;
+                    if (this.passwordForm.newPassword.length < 8) {
+                        this.passwordError = 'Password must be at least 8 characters.'; return;
+                    }
+                    if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
+                        this.passwordError = 'Passwords do not match.'; return;
+                    }
+                    const { error } = await this.supabase.auth.updateUser({ password: this.passwordForm.newPassword });
+                    if (error) { this.passwordError = error.message; return; }
+                    this.passwordSuccess = true;
+                    this.passwordForm = { newPassword: '', confirmPassword: '' };
+                    setTimeout(() => { this.showPasswordModal = false; this.passwordSuccess = false; }, 2000);
+                },
+
+                async deleteProject(project) {
+                    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
+
+                    // Delete Storage files under {user_id}/{project_id}/
+                    try {
+                        const prefix = `${this.user.id}/${project.id}/`;
+                        const { data: files } = await this.supabase.storage
+                            .from('project-files').list(`${this.user.id}/${project.id}`);
+                        if (files && files.length > 0) {
+                            const paths = files.map(f => `${prefix}${f.name}`);
+                            await this.supabase.storage.from('project-files').remove(paths);
+                        }
+                    } catch (storageErr) {
+                        console.warn('Storage cleanup failed (non-blocking):', storageErr);
+                    }
+
+                    // Delete the project row (cascades to project_documents)
+                    const { error } = await this.supabase.from('projects').delete().eq('id', project.id);
+                    if (error) { alert('Failed to delete: ' + error.message); return; }
+                    this.projects = this.projects.filter(p => p.id !== project.id);
+                },
+
+                openNewProject() { this.formError = ''; this.showModal = true; },
+
+                closeModal() {
+                    if (this.submitting) return;
+                    this.showModal = false;
+                    this.form = { name:'', client:'', address:'', phase:'rough-in', notes:'', specUrl:'', bidFile:null, plansFile:null, cabinetsFile:null };
+                    this.uploadPct = 0; this.uploading = false; this.formError = '';
+                },
+
+                async submitProject() {
+                    if (!this.formReady || this.submitting) return;
+                    this.submitting = true; this.formError = '';
+                    try {
+                        // 1. Create project
+                        this.uploadStatus = 'Creating project…';
+                        const { data: project, error: pErr } = await this.supabase
+                            .from('projects')
+                            .insert({ user_id: this.user.id, name: this.form.name.trim(),
+                                      client: this.form.client.trim() || null,
+                                      address: this.form.address.trim() || null,
+                                      phase: this.form.phase, notes: this.form.notes.trim() || null,
+                                      status: 'pending' })
+                            .select().single();
+                        if (pErr) throw new Error(pErr.message);
+
+                        const pid = project.id, uid = this.user.id;
+                        const uploads = [
+                            { file: this.form.bidFile,      docType: 'bid_spreadsheet', label: 'bid spreadsheet' },
+                            { file: this.form.plansFile,    docType: 'plans_pdf',        label: 'plans' },
+                            { file: this.form.cabinetsFile, docType: 'cabinets_pdf',     label: 'cabinets' },
+                        ];
+
+                        // 2. Upload files
+                        this.uploading = true;
+                        const storagePaths = {};
+                        for (let i = 0; i < uploads.length; i++) {
+                            const { file, docType, label } = uploads[i];
+                            this.uploadStatus = `Uploading ${label}…`;
+                            this.uploadPct = Math.round(((i + 0.5) / 4) * 75);
+                            const ext = file.name.split('.').pop();
+                            const path = `${uid}/${pid}/${docType}.${ext}`;
+                            const { error: uErr } = await this.supabase.storage
+                                .from('project-files').upload(path, file, { upsert: true });
+                            if (uErr) throw new Error(`Upload failed: ${uErr.message}`);
+                            storagePaths[docType] = path;
+                        }
+                        this.uploadPct = 75;
+
+                        // 3. Save document records
+                        this.uploadStatus = 'Saving records…';
+                        const { error: dErr } = await this.supabase.from('project_documents').insert([
+                            { project_id: pid, doc_type: 'spec_url',        spec_url: this.form.specUrl },
+                            { project_id: pid, doc_type: 'bid_spreadsheet', file_path: storagePaths['bid_spreadsheet'] },
+                            { project_id: pid, doc_type: 'plans_pdf',        file_path: storagePaths['plans_pdf'] },
+                            { project_id: pid, doc_type: 'cabinets_pdf',     file_path: storagePaths['cabinets_pdf'] },
+                        ]);
+                        if (dErr) throw new Error(dErr.message);
+                        this.uploadPct = 85;
+
+                        // 4. Get signed URLs
+                        this.uploadStatus = 'Starting pipeline…';
+                        const signedUrls = {};
+                        for (const [docType, path] of Object.entries(storagePaths)) {
+                            const { data: signed, error: sErr } = await this.supabase.storage
+                                .from('project-files').createSignedUrl(path, 3600);
+                            if (sErr) throw new Error(sErr.message);
+                            signedUrls[docType] = signed.signedUrl;
+                        }
+
+                        // 5. Kick off pipeline (pass access_token so server can upload result to Supabase)
+                        const { data: { session: sess } } = await this.supabase.auth.getSession();
+                        const res = await fetch(`${window.API_SERVER_URL}/api/run-pipeline`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ project_id: pid, project_name: this.form.name.trim(),
+                                spec_url: this.form.specUrl.trim(),
+                                bid_url: signedUrls['bid_spreadsheet'],
+                                plans_url: signedUrls['plans_pdf'],
+                                cabinets_url: signedUrls['cabinets_pdf'],
+                                access_token: sess?.access_token || '' }),
+                        });
+                        if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || 'Pipeline failed to start'); }
+                        this.uploadPct = 100;
+
+                        await this.loadProjects();
+                        this.closeModal();
+                        window.location.href = `job.html?id=${pid}`;
+
+                    } catch (e) {
+                        this.formError = e.message || 'Something went wrong. Please try again.';
+                    } finally {
+                        this.submitting = false; this.uploading = false;
+                    }
+                },
+
+                openJob(project) { window.location.href = `job.html?id=${project.id}`; },
+
+                statusLabel(s) {
+                    return { pending:'Queued', processing:'In Progress', running:'In Progress',
+                             review:'Ready for Review', complete:'Complete', error:'Error' }[s] || s;
+                },
+                statusClasses(s) {
+                    return { pending:'bg-slate-100 text-slate-500',
+                             processing:'bg-yellow-100 text-yellow-700',
+                             running:'bg-yellow-100 text-yellow-700',
+                             review:'bg-indigo-50 text-indigo-600',
+                             complete:'bg-green-100 text-green-700',
+                             error:'bg-red-100 text-red-600' }[s] || 'bg-slate-100 text-slate-500';
+                },
+                statusDot(s) {
+                    return { pending:'bg-slate-400', processing:'bg-yellow-500', running:'bg-yellow-500',
+                             review:'bg-indigo-500', complete:'bg-green-500', error:'bg-red-500' }[s] || 'bg-slate-400';
+                },
+                formatDate(iso) {
+                    if (!iso) return '';
+                    return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+                },
+            };
+        }
+    </script>
+</body>
+</html>

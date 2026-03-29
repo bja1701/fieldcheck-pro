@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FieldCheck Pro — Sign In</title>
+    <meta name="description" content="Sign in to FieldCheck Pro — bid verification for field crews.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="supabase-config.js"></script>
+    <style>
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        [x-cloak] { display: none !important; }
+
+        /* Subtle animated gradient background */
+        .bg-animated {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 12s ease infinite;
+        }
+        @keyframes gradientShift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Input focus ring */
+        input:focus { outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,0.3); }
+
+        /* Button press effect */
+        button:active:not(:disabled) { transform: scale(0.98); }
+    </style>
+</head>
+<body class="bg-animated min-h-screen flex flex-col items-center justify-center px-4 py-12"
+      x-data="loginApp()" x-init="init()">
+
+    <!-- Branding -->
+    <div class="mb-10 text-center select-none">
+        <!-- Icon mark -->
+        <div class="inline-flex items-center justify-center w-16 h-16 mb-5 rounded-2xl"
+             style="background:linear-gradient(135deg,rgba(99,102,241,0.3),rgba(99,102,241,0.1));border:1px solid rgba(99,102,241,0.35)">
+            <svg class="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <h1 class="text-3xl font-extrabold text-white tracking-tight leading-none">FieldCheck Pro</h1>
+        <p class="text-indigo-400 text-sm font-medium mt-2 tracking-wide">Bid verification · Field ready</p>
+    </div>
+
+    <!-- Card -->
+    <div class="w-full max-w-sm">
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+
+            <!-- Card top accent -->
+            <div class="h-1 bg-gradient-to-r from-indigo-500 to-violet-500"></div>
+
+            <div class="p-8">
+                <h2 class="text-slate-800 font-bold text-xl mb-1">Welcome back</h2>
+                <p class="text-slate-400 text-sm mb-7">Sign in to your account to continue.</p>
+
+                <!-- Config error -->
+                <div x-show="configError" x-cloak
+                     class="mb-5 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium">
+                    <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                    </svg>
+                    <span>App not configured. Fill in <code class="font-mono text-xs">supabase-config.js</code></span>
+                </div>
+
+                <!-- Auth error -->
+                <div x-show="error && !configError" x-cloak
+                     class="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium"
+                     x-text="error">
+                </div>
+
+                <form @submit.prevent="signIn" :class="configError ? 'opacity-50 pointer-events-none' : ''">
+                    <!-- Email -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider" for="email">
+                            Email
+                        </label>
+                        <input id="email" type="email" x-model="email"
+                               placeholder="you@example.com"
+                               autocomplete="email" required
+                               class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-300 transition-shadow bg-slate-50 focus:bg-white">
+                    </div>
+
+                    <!-- Password -->
+                    <div class="mb-7">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider" for="password">
+                            Password
+                        </label>
+                        <div class="relative">
+                            <input id="password" :type="showPw ? 'text' : 'password'" x-model="password"
+                                   placeholder="••••••••"
+                                   autocomplete="current-password" required
+                                   class="w-full px-4 py-3 pr-11 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-300 transition-shadow bg-slate-50 focus:bg-white">
+                            <!-- Show/hide toggle -->
+                            <button type="button" @click="showPw = !showPw" tabindex="-1"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1">
+                                <svg x-show="!showPw" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                                <svg x-show="showPw" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <button type="submit" :disabled="loading"
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2 min-h-[48px]">
+                        <svg x-show="loading" x-cloak class="animate-spin w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <span x-text="loading ? 'Signing in…' : 'Sign In'"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <p class="text-center text-slate-500 text-xs mt-6">
+            Don't have access? Contact Brighton.
+        </p>
+    </div>
+
+    <script>
+        function loginApp() {
+            return {
+                email: '',
+                password: '',
+                showPw: false,
+                loading: false,
+                error: '',
+                configError: false,
+                supabase: null,
+
+                init() {
+                    if (!window.SUPABASE_URL || window.SUPABASE_URL.includes('YOUR_PROJECT')) {
+                        this.configError = true;
+                        return;
+                    }
+                    this.supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+                    this.supabase.auth.getSession().then(({ data }) => {
+                        if (data.session) window.location.replace('projects.html');
+                    });
+                },
+
+                async signIn() {
+                    this.error = '';
+                    this.loading = true;
+                    try {
+                        const { error } = await this.supabase.auth.signInWithPassword({
+                            email: this.email.trim(),
+                            password: this.password,
+                        });
+                        if (error) {
+                            this.error = (error.message || '').includes('Invalid login credentials')
+                                ? 'Incorrect email or password.'
+                                : error.message;
+                        } else {
+                            window.location.replace('projects.html');
+                        }
+                    } catch (e) {
+                        this.error = 'Network error — check your connection and try again.';
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+            };
+        }
+    </script>
+</body>
+</html>

@@ -74,8 +74,10 @@ def _auth(spec_id: str, token: str) -> tuple[str, str]:
     resp = requests.post(AUTH_URL, json={"token": token, "specbookId": spec_id}, timeout=60)
     if resp.status_code == 401:
         raise RuntimeError(
-            "specbooks.com auth failed (401). The token may have expired — "
-            "re-open the spec book URL in a browser to get a fresh token."
+            "specbooks.com auth failed (401). The token may have expired or not yet loaded. "
+            "Open the spec book URL in a browser, wait for it to fully load (watch for the "
+            "spinner to stop), then copy the URL from the address bar. "
+            "Copying the URL too early can capture a token before it activates."
         )
     resp.raise_for_status()
     data = resp.json()
@@ -137,15 +139,18 @@ def _convert(all_specs: dict[str, list[dict]], bid_items: list[dict]) -> list[di
 
     for spec_room, items in all_specs.items():
         bid_room = ROOM_MAP.get(spec_room)
-        if bid_room is None:
-            print(f"  [scrape_spec] Warning: no room mapping for {spec_room!r} — skipping")
-            continue
 
         if bid_room == "__TOILETS__":
             for room_name, qty in TOILET_ROOMS:
                 if room_name in bid_toilet_rooms:
                     for raw in items:
                         spec_items.append(_to_item(raw, room_name, qty_override=qty))
+            continue
+
+        if bid_room is None:
+            # Not in hardcoded map — store with raw spec room name for map_rooms AI to translate
+            for raw in items:
+                spec_items.append(_to_item(raw, spec_room))
             continue
 
         for raw in items:

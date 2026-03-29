@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FieldCheck Preview (local)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="data.js"></script>
+</head>
+<body class="bg-gray-100 p-6">
+<h1 class="text-2xl font-bold mb-2">FieldCheck Pro — Baker Residence <span class="text-sm text-gray-500 font-normal">local preview</span></h1>
+<p class="text-sm text-gray-500 mb-6" id="meta"></p>
+<div id="rooms" class="space-y-4"></div>
+<script>
+  const data = JOB_DATA;
+  document.getElementById('meta').textContent =
+    `${data.rooms.length} rooms · ${data.rooms.reduce((a,r)=>a+r.items.length,0)} items`;
+
+  const floorColors = {basement:'bg-yellow-50 border-yellow-300', main:'bg-blue-50 border-blue-300', upper:'bg-purple-50 border-purple-300'};
+  const container = document.getElementById('rooms');
+
+  data.rooms.forEach(room => {
+    const color = floorColors[room.floor] || 'bg-gray-50 border-gray-200';
+    const section = document.createElement('div');
+    section.className = `rounded-lg border p-4 ${color}`;
+    section.innerHTML = `
+      <div class="flex items-center gap-3 mb-2">
+        <h2 class="font-semibold text-lg">${room.name}</h2>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-white/60 border">${room.floor}</span>
+        <span class="text-xs text-gray-500">${room.items.length} items</span>
+        <span class="text-xs text-gray-400">cabinet pages: ${room.cabinetPages.length ? room.cabinetPages.join(', ') : '—'}</span>
+      </div>
+      <table class="w-full text-sm border-collapse">
+        <thead><tr class="text-left text-xs text-gray-500">
+          <th class="pr-4">Item</th><th class="pr-4">Bid</th><th class="pr-4">Spec</th><th class="pr-4">Status</th><th>Spec Image</th>
+        </tr></thead>
+        <tbody>${room.items.map(item => `
+          <tr class="border-t border-black/5">
+            <td class="pr-4 py-1">${item.name}</td>
+            <td class="pr-4">${item.bidQty}</td>
+            <td class="pr-4">${item.specQty}</td>
+            <td class="pr-4"><span class="px-1.5 py-0.5 rounded text-xs ${item.status==='match'||item.status==='ok'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'}">${item.status}</span></td>
+            <td>${item.specImage ? `<img src="${item.specImage}" class="h-8 w-8 object-contain">` : ''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+    container.appendChild(section);
+  });
+</script>
+</body>
+</html>

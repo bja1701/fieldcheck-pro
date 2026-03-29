@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FieldCheck Pro - Bid Check</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine loaded dynamically by module script below after JOB_DATA is set -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="supabase-config.js"></script>
+    <style>
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; scroll-behavior: smooth; }
+        [x-cloak] { display: none !important; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 0.8s linear infinite; }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+    <!-- Loading state — visible while Supabase fetch is in progress -->
+    <div id="bid-loader" class="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div class="text-center max-w-sm px-6">
+            <div id="bid-loader-spinner" class="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p id="bid-loader-msg" class="text-slate-500 text-sm font-medium">Loading project…</p>
+            <a id="bid-loader-back" href="projects.html"
+               style="display:none"
+               class="mt-5 inline-flex items-center gap-2 bg-indigo-600 text-white text-sm font-bold px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                ← Back to Projects
+            </a>
+        </div>
+    </div>
+
+    <!-- App wrapper — x-cloak hides it until Alpine starts -->
+    <div id="bid-app" class="pb-24" x-data="app()" x-cloak>
+
+    <!-- SVG sprite: icons reused across the UI -->
+    <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+        <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7"/>
+        </symbol>
+        <symbol id="icon-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </symbol>
+    </svg>
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-slate-900 to-indigo-900 text-white px-4 py-3 shadow-lg sticky top-0 z-40">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-lg font-bold tracking-tight" x-text="job.project">Loading...</h1>
+                <p class="text-xs font-medium text-indigo-300">FieldCheck Pro</p>
+            </div>
+            <div>
+                <span class="bg-indigo-500 bg-opacity-30 text-indigo-200 border border-indigo-400 border-opacity-30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">ROUGH-IN</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-16 z-30">
+        <div class="grid grid-cols-3">
+            <template x-for="tab in tabs">
+                <button @click="currentTab = tab"
+                        :class="currentTab === tab ? 'text-indigo-600 border-indigo-600 font-bold' : 'text-slate-400 border-transparent font-semibold hover:text-slate-600'"
+                        class="py-3 text-center border-b-2 transition-all text-sm capitalize"
+                        :aria-label="'Open ' + (tab === 'bid' ? 'Bid Check' : (tab === 'cabinets' ? 'Cabinets & Plans' : tab)) + ' tab'"
+                        :aria-pressed="currentTab === tab"
+                        x-text="tab === 'bid' ? 'Bid Check' : (tab === 'cabinets' ? 'Cabinets & Plans' : tab)">
+                </button>
+            </template>
+        </div>
+    </nav>
+
+    <main class="p-4 max-w-7xl mx-auto">
+        <div x-show="dataErrors.length > 0" x-cloak class="mb-4 bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl" role="alert">
+            <h2 class="font-bold text-sm mb-2">Data load diagnostics</h2>
+            <template x-for="error in dataErrors" :key="error">
+                <p class="text-sm" x-text="error"></p>
+            </template>
+            <template x-for="warning in dataWarnings" :key="warning">
+                <p class="text-xs text-red-600 mt-1" x-text="warning"></p>
+            </template>
+        </div>
+
+        <!-- BID CHECK TAB -->
+        <div x-show="currentTab === 'bid'" x-cloak>
+            <!-- Dashboard -->
+            <div class="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-xl shadow-xl p-5 mb-6 text-white">
+                <!-- Stats Row -->
+                <div class="grid grid-cols-3 gap-4 mb-5">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-indigo-200">Checked</p>
+                        <p class="text-3xl font-extrabold tracking-tight" x-text="totalItems">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-red-300">Issues</p>
+                        <p class="text-3xl font-extrabold tracking-tight text-red-400" x-text="totalDiscrepancies">0</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-green-300">Match</p>
+                        <p class="text-3xl font-extrabold tracking-tight text-green-400" x-text="matchRate">—</p>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex flex-col gap-2 mb-5">
+                    <button @click="groupByFixture = !groupByFixture"
+                            :class="groupByFixture ? 'bg-indigo-500 text-white shadow-md' : 'bg-white bg-opacity-10 text-indigo-100'"
+                            class="flex items-center justify-center gap-2 px-4 py-2 min-h-11 rounded-lg transition-all text-sm font-bold"
+                            :aria-label="groupByFixture ? 'Switch to room view' : 'Switch to fixture grouped view'">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                        <span x-text="groupByFixture ? 'View by Room' : 'View by Fixture Type'"></span>
+                    </button>
+                    <button @click="showErrorsOnly = !showErrorsOnly"
+                            :class="showErrorsOnly ? 'bg-red-500 text-white shadow-md' : 'bg-white bg-opacity-10 text-indigo-100'"
+                            class="flex items-center justify-center gap-2 px-4 py-2 min-h-11 rounded-lg transition-all text-sm font-bold"
+                            :aria-label="showErrorsOnly ? 'Show all items' : 'Show discrepancies only'">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span x-text="showErrorsOnly ? 'Showing Issues Only' : 'Show All Items'"></span>
+                    </button>
+                </div>
+
+                <!-- Floor Filter -->
+                <div class="mb-4">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-2">Filter by Floor</p>
+                    <div class="flex gap-2 flex-wrap">
+                        <template x-for="floor in floors">
+                            <button @click="selectedFloor = floor"
+                                    :class="selectedFloor === floor ? 'bg-white text-indigo-900 shadow-md' : 'bg-white bg-opacity-10 text-indigo-200 hover:bg-opacity-20'"
+                                    class="px-4 py-2 min-h-11 rounded-full text-xs font-bold transition-all">
+                                <span x-text="formatFloorLabel(floor)"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Document Access Buttons -->
+                <div class="flex gap-3 mt-4">
+                    <button @click="openLightbox('Bid_sheet.png', $event)"
+                            class="flex-1 flex items-center justify-center gap-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white px-4 py-3 min-h-12 rounded-lg text-sm font-bold transition-all border border-white border-opacity-20">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Bid Sheet
+                    </button>
+                    <a :href="job.specUrl || '#'"
+                       target="_blank"
+                       class="flex-1 flex items-center justify-center gap-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white px-4 py-3 min-h-12 rounded-lg text-sm font-bold transition-all border border-white border-opacity-20">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        Spec Book
+                    </a>
+                </div>
+            </div>
+
+            <!-- FIXTURE GROUPED VIEW -->
+            <div x-show="groupByFixture" x-cloak>
+                <template x-for="[groupName, items] in filteredGroupedItems" :key="groupName">
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between gap-3 px-4 py-3 mb-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <h2 class="text-base font-bold text-slate-900" x-text="groupName"></h2>
+                            <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full" x-text="getGroupBidTotal(items) + ' items'"></span>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="item in items" :key="item.name + item.roomName">
+                                <div class="bg-white rounded-xl shadow-sm border-l-4 p-4 transition-colors"
+                                     :class="{ 'border-green-500': getItemStatus(item) === 'ok', 'border-yellow-500': getItemStatus(item) === 'warning', 'border-red-500': getItemStatus(item) === 'issue' }">
+                                    <div class="flex gap-4">
+                                        <div class="w-20 h-20 bg-slate-50 rounded-lg border border-slate-200 flex-shrink-0 overflow-hidden cursor-pointer" @click="openLightbox(item.specImage, $event)">
+                                            <img x-show="item.specImage" :src="item.specImage" :alt="item.name + ' spec image'" class="w-full h-full object-contain hover:scale-105 transition-transform" loading="lazy">
+                                            <div x-show="!item.specImage" class="w-full h-full flex items-center justify-center text-slate-300 text-xs text-center p-1">No Image</div>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex justify-between items-start gap-2">
+                                                <div class="min-w-0">
+                                                    <p class="text-xs font-bold uppercase tracking-wide text-indigo-600" x-text="item.roomName + ' · ' + (item.floor || 'Unknown')"></p>
+                                                    <h3 class="font-semibold text-slate-800 text-sm leading-snug" x-text="item.name"></h3>
+                                                </div>
+                                                <div class="flex items-center gap-0.5 flex-shrink-0">
+                                                    <span class="text-xs font-bold px-2 py-1 rounded-l-md bg-slate-100 text-slate-700" x-text="item.bidQty + ' bid'"></span>
+                                                    <span class="text-xs font-bold px-2 py-1 rounded-r-md"
+                                                          :class="{ 'bg-green-100 text-green-800': getItemStatus(item) === 'ok', 'bg-yellow-100 text-yellow-800': getItemStatus(item) === 'warning', 'bg-red-100 text-red-800': getItemStatus(item) === 'issue' }"
+                                                          x-text="item.specQty + ' spec'"></span>
+                                                </div>
+                                            </div>
+                                            <p class="text-xs font-medium mt-1"
+                                               :class="{ 'text-green-600': getItemStatus(item) === 'ok', 'text-yellow-600': getItemStatus(item) === 'warning', 'text-red-600': getItemStatus(item) === 'issue' }"
+                                               x-text="getIssueLabel(item)"></p>
+                                            <button @click.stop="openCorrectionModal(item, item.roomName)"
+                                                    class="inline-flex items-center gap-1.5 mt-2 px-3 py-2 min-h-11 rounded-lg text-xs font-bold transition-colors focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+                                                    :class="item._corrected ? 'bg-green-50 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300'">
+                                                <svg x-show="item._corrected" class="w-3.5 h-3.5"><use href="#icon-check"/></svg>
+                                                <svg x-show="!item._corrected" class="w-3.5 h-3.5"><use href="#icon-pencil"/></svg>
+                                                <span x-text="item._corrected ? 'Corrected' : 'Correct'"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="filteredGroupedItems.length === 0" class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-slate-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-base font-semibold text-slate-700 mb-1">All Clear</p>
+                    <p class="text-sm text-slate-400">No discrepancies found for this filter.</p>
+                </div>
+            </div>
+
+            <!-- ROOM VIEW -->
+            <div x-show="!groupByFixture" x-cloak>
+                <template x-for="room in filteredRooms" :key="room.name">
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between gap-3 px-4 py-3 mb-3 bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <h2 class="text-base font-bold text-slate-900" x-text="room.name"></h2>
+                            <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200" x-text="formatFloorLabel(room.floor) + ' Floor'"></span>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="(item, idx) in room.visibleItems" :key="item.name + '_' + idx">
+                                <div class="bg-white rounded-xl shadow-sm border-l-4 p-4 flex gap-4 transition-colors"
+                                     :class="{ 'border-green-500': getItemStatus(item) === 'ok', 'border-yellow-500': getItemStatus(item) === 'warning', 'border-red-500': getItemStatus(item) === 'issue' }">
+                                    <div class="w-20 h-20 bg-slate-50 rounded-lg border border-slate-200 flex-shrink-0 overflow-hidden cursor-pointer"
+                                         @click="openLightbox(item.specImage, $event)">
+                                        <img x-show="item.specImage" :src="item.specImage" :alt="item.name + ' spec image'" class="w-full h-full object-contain hover:scale-105 transition-transform" loading="lazy">
+                                        <div x-show="!item.specImage" class="w-full h-full flex items-center justify-center text-slate-300 text-xs text-center p-1">No Image</div>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex justify-between items-start gap-2">
+                                            <h3 class="font-semibold text-slate-800 text-sm leading-snug" x-text="item.name"></h3>
+                                            <div class="flex items-center gap-0.5 flex-shrink-0">
+                                                <span class="text-xs font-bold px-2 py-1 rounded-l-md bg-slate-100 text-slate-700" x-text="item.bidQty + ' bid'"></span>
+                                                <span class="text-xs font-bold px-2 py-1 rounded-r-md"
+                                                      :class="{ 'bg-green-100 text-green-800': getItemStatus(item) === 'ok', 'bg-yellow-100 text-yellow-800': getItemStatus(item) === 'warning', 'bg-red-100 text-red-800': getItemStatus(item) === 'issue' }"
+                                                      x-text="item.specQty + ' spec'"></span>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs font-medium mt-1"
+                                           :class="{ 'text-green-600': getItemStatus(item) === 'ok', 'text-yellow-600': getItemStatus(item) === 'warning', 'text-red-600': getItemStatus(item) === 'issue' }"
+                                           x-text="getIssueLabel(item)"></p>
+                                        <button @click.stop="openCorrectionModal(item, room.name)"
+                                                class="inline-flex items-center gap-1.5 mt-2 px-3 py-2 min-h-11 rounded-lg text-xs font-bold transition-colors focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+                                                :class="item._corrected ? 'bg-green-50 text-green-700 border border-green-300' : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300'">
+                                            <svg x-show="item._corrected" class="w-3.5 h-3.5"><use href="#icon-check"/></svg>
+                                            <svg x-show="!item._corrected" class="w-3.5 h-3.5"><use href="#icon-pencil"/></svg>
+                                            <span x-text="item._corrected ? 'Corrected' : 'Correct'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="filteredRooms.length === 0" class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-slate-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-base font-semibold text-slate-700 mb-1">All Clear</p>
+                    <p class="text-sm text-slate-400">No discrepancies found for this filter.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CABINETS & PLANS TAB -->
+        <div x-show="currentTab === 'cabinets'" x-cloak>
+            <!-- Open full plans PDF -->
+            <div class="mb-3">
+                <a href="plans.pdf"
+                   target="_blank"
+                   class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 min-h-12 rounded-lg font-bold shadow-sm transition-colors"
+                   aria-label="Open full plans PDF">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Open full plans PDF
+                </a>
+            </div>
+
+            <!-- Floor plans: one link per floor -->
+            <div class="mb-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <p class="text-sm font-bold text-slate-700 mb-3">Floor plans</p>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="floor in planFloors" :key="floor">
+                        <template x-if="getPlanFirstPage(floor)">
+                            <button type="button"
+                                    @click="openPlanPage(getPlanFirstPage(floor))"
+                                    class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 min-h-11 rounded-lg text-sm font-semibold transition-colors">
+                                <span x-text="'View ' + formatFloorLabel(floor) + ' plan (pg ' + getPlanFirstPage(floor) + ')'"></span>
+                            </button>
+                        </template>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Floor Filter for Cabinets -->
+            <div class="mb-4">
+                <p class="text-sm font-bold text-slate-700 mb-2">Filter by Floor</p>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="floor in floors">
+                        <button @click="selectedCabinetFloor = floor"
+                                :class="selectedCabinetFloor === floor ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                                class="px-4 py-2 min-h-11 rounded-full text-xs font-bold transition-colors">
+                            <span x-text="formatFloorLabel(floor)"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div class="space-y-8">
+                <template x-for="room in filteredCabinetRooms" :key="room.name">
+                    <div x-show="room.cabinetImages && room.cabinetImages.length > 0">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                            <div class="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-indigo-200 shadow-sm flex-1">
+                                <h2 class="text-base font-bold text-slate-900" x-text="room.name"></h2>
+                                <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200" x-text="formatFloorLabel(room.floor) + ' Floor'"></span>
+                            </div>
+                            <template x-if="getPlanFirstPage(room.floor)">
+                                <button type="button"
+                                        @click="openPlanPage(getPlanFirstPage(room.floor))"
+                                        class="text-sm text-indigo-600 hover:text-indigo-800 font-bold underline underline-offset-2 px-2 py-1">
+                                    <span x-text="'View ' + formatFloorLabel(room.floor) + ' plan (pg ' + getPlanFirstPage(room.floor) + ')'"></span>
+                                </button>
+                            </template>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <template x-for="(img, index) in room.cabinetImages" :key="img">
+                                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
+                                    <div class="bg-slate-50 px-3 py-1.5 border-b border-slate-100 text-xs font-bold text-slate-400 flex justify-between">
+                                        <span x-text="'PAGE ' + room.cabinetPages[index]"></span>
+                                        <span>CABINET DETAIL</span>
+                                    </div>
+                                    <img :src="img"
+                                         @click="openLightbox(img, $event)"
+                                         :alt="room.name + ' cabinet drawing page ' + room.cabinetPages[index]"
+                                         class="w-full h-auto cursor-zoom-in bg-slate-50"
+                                         loading="lazy">
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="filteredCabinetRooms.length === 0" class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-slate-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <p class="text-base font-semibold text-slate-700 mb-1">No Results</p>
+                    <p class="text-sm text-slate-400">No cabinet drawings for selected floor.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPORTS TAB -->
+        <div x-show="currentTab === 'reports'" x-cloak>
+            <div class="space-y-6">
+                <!-- Summary Card -->
+                <div class="bg-gradient-to-r from-red-600 to-red-700 rounded-xl shadow-xl p-6 text-white">
+                    <div class="flex justify-between items-center gap-4">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-red-200">Total Discrepancies</p>
+                            <p class="text-4xl font-extrabold tracking-tight" x-text="totalDiscrepancies">0</p>
+                        </div>
+                        <div class="flex gap-2 flex-shrink-0">
+                            <button @click="exportPDF()"
+                                    class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 min-h-11 rounded-lg font-bold transition-colors flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print
+                            </button>
+                            <button @click="sendReportToChad()"
+                                    :disabled="emailStatus === 'sending'"
+                                    class="px-4 py-2 min-h-11 rounded-lg font-bold transition-colors flex items-center gap-2"
+                                    :class="{
+                                      'bg-white text-red-700 hover:bg-red-50 shadow-md': emailStatus === 'idle',
+                                      'bg-white bg-opacity-50 text-red-900 cursor-wait': emailStatus === 'sending',
+                                      'bg-green-400 text-green-900': emailStatus === 'sent',
+                                      'bg-red-300 text-red-900': emailStatus === 'error'
+                                    }">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                <span x-text="{ idle: 'Email Report', sending: 'Sending…', sent: 'Sent ✓', error: 'Failed' }[emailStatus]"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Discrepancy Filter -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <p class="text-sm font-bold text-slate-700 mb-3">Filter Discrepancies</p>
+                    <div class="flex gap-2 flex-wrap mb-3">
+                        <template x-for="floor in floors">
+                            <button @click="reportFilterFloor = floor"
+                                    :class="reportFilterFloor === floor ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                                    class="px-4 py-2 min-h-11 rounded-full text-xs font-bold transition-colors">
+                                <span x-text="formatFloorLabel(floor)"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <template x-for="type in reportTypes">
+                            <button @click="reportFilterType = type.value"
+                                    :class="reportFilterType === type.value ? 'bg-red-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                                    class="px-4 py-2 min-h-11 rounded-full text-xs font-bold transition-colors">
+                                <span x-text="type.label"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Discrepancy List -->
+                <div class="space-y-4">
+                    <template x-for="discrepancy in filteredDiscrepancies" :key="discrepancy.room + discrepancy.item">
+                        <div class="bg-white rounded-xl shadow-sm border-l-4 p-4"
+                             :class="discrepancy.status === 'missingFromBid' ? 'border-red-500' : 'border-yellow-500'">
+                            <div class="flex justify-between items-start mb-2 gap-2">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide" x-text="discrepancy.room + ' · ' + discrepancy.roomFloor + ' Floor'"></p>
+                                    <h3 class="font-semibold text-slate-800 leading-snug" x-text="discrepancy.item"></h3>
+                                </div>
+                                <div class="flex items-center gap-0.5 flex-shrink-0">
+                                    <span class="text-xs font-bold px-2 py-1 rounded-l-md bg-slate-100 text-slate-700" x-text="discrepancy.bidQty + ' bid'"></span>
+                                    <span class="text-xs font-bold px-2 py-1 rounded-r-md"
+                                          :class="discrepancy.status === 'missingFromBid' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'"
+                                          x-text="discrepancy.specQty + ' spec'"></span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-slate-600 mb-2" x-text="discrepancy.specDesc || 'No description'"></p>
+                            <p class="text-xs font-semibold"
+                               :class="discrepancy.status === 'missingFromBid' ? 'text-red-600' : 'text-yellow-600'">
+                                <span x-text="discrepancy.status === 'missingFromBid' ? '⚠️ Missing from bid — ADD TO BID' : '⚠️ Extra in bid — REVIEW'"></span>
+                            </p>
+                            <template x-if="discrepancy.specImage">
+                                <div class="mt-3">
+                                    <img :src="discrepancy.specImage"
+                                         @click="openLightbox(discrepancy.specImage, $event)"
+                                         :alt="discrepancy.item + ' discrepancy image'"
+                                         class="w-32 h-32 object-contain border border-slate-200 rounded-lg cursor-zoom-in"
+                                         loading="lazy">
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <div x-show="filteredDiscrepancies.length === 0" class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-slate-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <p class="text-base font-semibold text-slate-700 mb-1">No Results</p>
+                        <p class="text-sm text-slate-400">No discrepancies match your filters.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Image Lightbox Modal -->
+    <div x-show="lightboxImage !== null" x-cloak @click="closeLightbox()" @keydown.escape.window="closeLightbox()" class="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4 z-50 transition-opacity">
+        <div class="relative w-full h-full flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Image preview" tabindex="-1" x-ref="lightboxDialog">
+            <button @click="closeLightbox()" aria-label="Close image preview" class="absolute top-4 right-4 bg-white text-slate-800 p-2.5 rounded-full shadow-lg hover:bg-slate-100 transition-colors z-50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <img :src="lightboxImage" alt="Expanded preview image" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl" @click.stop loading="lazy">
+        </div>
+    </div>
+
+    <!-- Correction Modal -->
+    <div x-show="correctionModal.open" x-cloak
+         @keydown.escape.window="closeCorrectionModal()"
+         class="fixed inset-0 bg-slate-900 bg-opacity-80 flex items-end sm:items-center justify-center p-0 sm:p-4"
+         style="z-index: 60">
+        <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-screen flex flex-col"
+             @click.stop>
+            <!-- Mobile drag handle -->
+            <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1 sm:hidden"></div>
+            <!-- Header -->
+            <div class="flex justify-between items-start p-4 border-b border-slate-200 flex-shrink-0">
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs text-slate-400 uppercase font-bold tracking-wide" x-text="correctionModal.roomName"></p>
+                    <h3 class="font-bold text-slate-900 text-lg leading-tight" x-text="correctionModal.item && correctionModal.item.name"></h3>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Current match: <span class="italic" x-text="(correctionModal.item && correctionModal.item.specDesc) || 'No match'"></span>
+                    </p>
+                    <!-- Qty override row -->
+                    <div class="flex items-center gap-3 mt-2">
+                        <span class="text-xs text-slate-500 font-medium">
+                            Bid: <strong class="text-slate-800" x-text="correctionModal.item && correctionModal.item.bidQty"></strong>
+                            &nbsp;·&nbsp;
+                            Spec: <strong class="text-slate-800" x-text="correctionModal.item && correctionModal.item.specQty"></strong>
+                        </span>
+                        <label class="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                            Override spec qty:
+                            <input type="number" min="0" max="99"
+                                   x-model.number="correctionModal.specQtyOverride"
+                                   class="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm text-center focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none">
+                        </label>
+                    </div>
+                </div>
+                <button @click="closeCorrectionModal()" class="text-slate-300 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0 ml-4" aria-label="Close correction modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <!-- Spec item grid -->
+            <div class="overflow-y-auto flex-1 p-4">
+                <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Select the correct spec item:</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <!-- No match option -->
+                    <button @click="applyNoMatch()"
+                            class="border-2 border-dashed border-slate-200 hover:border-red-400 hover:bg-red-50 rounded-xl p-4 flex flex-col items-center gap-2 text-center transition-all min-h-24">
+                        <div class="w-16 h-16 flex items-center justify-center text-slate-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </div>
+                        <p class="text-xs font-semibold text-slate-600">No match</p>
+                    </button>
+                    <!-- Spec items for this room -->
+                    <template x-for="specItem in specCatalogForRoom(correctionModal.roomName)" :key="specItem.name + specItem.model">
+                        <button @click="applyCorrection(specItem)"
+                                class="border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-xl p-4 flex flex-col items-center gap-2 text-center transition-all min-h-24">
+                            <div class="w-16 h-16 bg-slate-50 rounded-lg overflow-hidden flex-shrink-0">
+                                <img x-show="specItem.image_url" :src="specItem.image_url" :alt="specItem.name"
+                                     class="w-full h-full object-contain" loading="lazy">
+                                <div x-show="!specItem.image_url" class="w-full h-full flex items-center justify-center text-slate-300 text-xs">No img</div>
+                            </div>
+                            <div class="min-w-0 w-full">
+                                <p class="text-xs font-semibold text-slate-800 leading-tight line-clamp-2" x-text="specItem.name"></p>
+                                <p class="text-xs text-slate-400 mt-0.5" x-text="specItem.model"></p>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- #bid-app -->
+
+    <script type="module">
+        // Load project data from Supabase, then dynamically start Alpine.
+        // This replaces the old document.write() approach that required a local tunnel.
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = () => reject(new Error(`Failed to load: ${src}`));
+                document.body.appendChild(s);
+            });
+        }
+
+        const loader = document.getElementById('bid-loader');
+        const loaderSpinner = document.getElementById('bid-loader-spinner');
+        const loaderMsg = document.getElementById('bid-loader-msg');
+        const loaderBack = document.getElementById('bid-loader-back');
+
+        function showError(msg) {
+            if (loaderSpinner) loaderSpinner.style.display = 'none';
+            loaderMsg.textContent = msg;
+            loaderMsg.className = 'text-slate-800 text-base font-semibold mt-0';
+            if (loaderBack) loaderBack.style.display = 'inline-flex';
+        }
+
+        try {
+            // 1. Validate project_id in URL
+            const id = new URLSearchParams(location.search).get('id');
+            if (!id) { location.replace('projects.html'); throw new Error('no id'); }
+
+            // 2. Auth check
+            const _db = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+            const { data: authData } = await _db.auth.getSession();
+            const session = authData?.session;
+            if (!session) { location.replace('login.html'); throw new Error('no session'); }
+
+            // 3. Fetch project data from Supabase
+            loaderMsg.textContent = 'Loading bid check data…';
+            const { data: project, error } = await _db
+                .from('projects')
+                .select('id, name, status, generated_data')
+                .eq('id', id)
+                .single();
+
+            if (error) {
+                showError(`Could not load project: ${error.message}`);
+                throw new Error('supabase error');
+            }
+            if (!project) {
+                showError('Project not found.');
+                throw new Error('project not found');
+            }
+
+            if (!project.generated_data) {
+                const msg = (project.status === 'processing' || project.status === 'pending')
+                    ? 'Pipeline is still running — check back in a few minutes.'
+                    : 'No bid check data yet. Re-run the pipeline from the project page.';
+                showError(msg);
+                throw new Error('no generated_data');
+            }
+
+            // 4. Set JOB_DATA BEFORE app-state.js loads (app() reads it at parse time)
+            window.JOB_DATA = project.generated_data;
+
+            // 5. Load app scripts in dependency order
+            await loadScript('js/config.js');
+            await loadScript('js/billable.js');
+            await loadScript('js/formatters.js');
+            await loadScript('js/exports.js');
+            await loadScript('js/app-state.js');
+
+            // 6. Load Alpine — DOMContentLoaded already fired, so CDN calls Alpine.start() immediately
+            await loadScript('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
+
+            // 7. Wait one tick for Alpine to process x-data and remove x-cloak, then remove loader
+            await new Promise(r => setTimeout(r, 60));
+            loader.remove();
+
+        } catch (err) {
+            if (!['no id', 'no session', 'supabase error', 'project not found',
+                   'no generated_data'].includes(err.message)) {
+                showError(`Unexpected error: ${err.message}`);
+                console.error('bid-check init error:', err);
+            }
+        }
+    </script>
+</body>
+</html>

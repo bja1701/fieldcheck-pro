@@ -43,6 +43,18 @@ HIDE_ITEMS = [
     "Misc. Sink (Laundry/Wet Bar/Shop)",
 ]
 
+# Items sourced from architectural plans (not spec books).
+# These are billable fixtures confirmed from plans — never compared to spec book.
+# The frontend uses this to show them with a "from plans" badge instead of a mismatch flag.
+PLAN_SOURCED_ITEMS = [
+    "Hose Bib",
+    "Hot/Cold Hose Bib",
+    "Washer Box",
+    "Ice bin hook up",
+    "Refridgerator Water-Line",
+    "Dog Wash",
+]
+
 _IS_BILLABLE_JS = """\
 function isBillableItem(itemName) {
   const normalized = itemName.toLowerCase().trim();
@@ -165,6 +177,7 @@ def _write_data_js(output_dir: str, job_data: dict) -> None:
 
     billable_js = json.dumps(BILLABLE_ITEMS, indent=2)
     hide_js = json.dumps(HIDE_ITEMS, indent=2)
+    plan_sourced_js = json.dumps(PLAN_SOURCED_ITEMS, indent=2)
     job_js = json.dumps(job_data, indent=2)
 
     content = (
@@ -172,6 +185,8 @@ def _write_data_js(output_dir: str, job_data: dict) -> None:
         f"const BILLABLE_ITEMS = {billable_js};\n\n"
         "// Items to hide ($0 noise from CSV)\n"
         f"const HIDE_ITEMS = {hide_js};\n\n"
+        "// Items sourced from architectural plans (not spec books) — show with 'from plans' badge\n"
+        f"const PLAN_SOURCED_ITEMS = {plan_sourced_js};\n\n"
         f"{_IS_BILLABLE_JS}\n\n"
         f"const JOB_DATA = {job_js};\n"
     )

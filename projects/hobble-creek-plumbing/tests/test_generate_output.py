@@ -19,6 +19,7 @@ from nodes.generate_output import (
     _bid_rooms_ordered,
     BILLABLE_ITEMS,
     HIDE_ITEMS,
+    PLAN_SOURCED_ITEMS,
 )
 
 
@@ -325,3 +326,34 @@ class TestGenerateOutput:
         result = generate_output(_make_state(output_dir=""))
         assert "output_data" in result
         assert result["output_data"]["project"] == "Baker Residence"
+
+    def test_data_js_contains_plan_sourced_items(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generate_output(_make_state(output_dir=tmp))
+            content = (Path(tmp) / "data.js").read_text()
+            assert "PLAN_SOURCED_ITEMS" in content
+
+    def test_data_js_plan_sourced_includes_hose_bib(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generate_output(_make_state(output_dir=tmp))
+            content = (Path(tmp) / "data.js").read_text()
+            assert "Hose Bib" in content
+
+
+# ── Unit: PLAN_SOURCED_ITEMS constant ─────────────────────────────────────────
+
+class TestPlanSourcedItemsConstant:
+    def test_is_list(self):
+        assert isinstance(PLAN_SOURCED_ITEMS, list)
+
+    def test_hose_bib_in_list(self):
+        assert "Hose Bib" in PLAN_SOURCED_ITEMS
+
+    def test_washer_box_in_list(self):
+        assert "Washer Box" in PLAN_SOURCED_ITEMS
+
+    def test_toilet_not_in_list(self):
+        assert "Toilet" not in PLAN_SOURCED_ITEMS
+
+    def test_lav_not_in_list(self):
+        assert "Lav" not in PLAN_SOURCED_ITEMS

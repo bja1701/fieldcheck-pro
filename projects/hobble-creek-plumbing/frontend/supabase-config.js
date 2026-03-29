@@ -12,4 +12,4 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // After running `api/TUNNEL_SETUP.md` step 2, paste your stable tunnel URL here.
 // Format: https://<your-tunnel-uuid>.cfargotunnel.com
 // This value is permanent once the named tunnel is created.
-window.API_SERVER_URL = 'REPLACE_WITH_TUNNEL_URL';
+window.API_SERVER_URL = 'https://1aadb92a-fd85-4c76-bac3-368528954a0d.cfargotunnel.com';

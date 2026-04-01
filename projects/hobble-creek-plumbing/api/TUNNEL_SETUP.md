@@ -32,9 +32,38 @@ Your stable URL is:
 https://<tunnel-uuid>.cfargotunnel.com
 ```
 
+`cloudflared` also writes **`~/.cloudflared/<tunnel-uuid>.json`** (credentials). You need this path in the next step.
+
 ---
 
-## Step 3 — Update supabase-config.js
+## Step 3 — Create `~/.cloudflared/config.yml` (required)
+
+Without this file, `cloudflared tunnel run` connects to Cloudflare but **has no ingress rules**, so every request fails (browser: “Failed to fetch”, `curl`: connection errors or 503). You will see a warning like *“No ingress rules were defined”*.
+
+1. Copy the example and edit it (use your **real** tunnel UUID and **absolute** paths):
+
+   ```bash
+   cp projects/hobble-creek-plumbing/api/cloudflared-config.example.yml ~/.cloudflared/config.yml
+   ```
+
+2. Edit `~/.cloudflared/config.yml`:
+   - `tunnel:` must equal your tunnel UUID (same as in the URL).
+   - `credentials-file:` must be the absolute path to `~/.cloudflared/<tunnel-uuid>.json` from Step 2 (e.g. `/home/you/.cloudflared/1aadb92a-....json`).
+   - `service:` must be `http://127.0.0.1:8000` (same port as `start.sh`; use `127.0.0.1` so `cloudflared` does not depend on IPv6 `localhost` quirks).
+
+3. Test:
+
+   ```bash
+   curl -sS "https://<tunnel-uuid>.cfargotunnel.com/api/health"
+   ```
+
+   With `start.sh` running, you should see `{"status":"ok"}`.
+
+**WSL:** Run `start.sh` and `curl` from the same Linux environment. Paths in `config.yml` are Linux paths under `/home/...`, not `C:\`.
+
+---
+
+## Step 4 — Update supabase-config.js
 
 Open `frontend/supabase-config.js` and replace `REPLACE_WITH_TUNNEL_URL` with your stable URL:
 
@@ -46,7 +75,7 @@ Then redeploy to Vercel (`vercel --prod` from `frontend/`).
 
 ---
 
-## Step 4 — Start the server + tunnel
+## Step 5 — Start the server + tunnel
 
 From the `nexusflow_builds/` root:
 

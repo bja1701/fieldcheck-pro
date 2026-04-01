@@ -180,6 +180,9 @@ cloudflared tunnel login              # opens browser — authorize once
 cloudflared tunnel create fieldcheck-api
 # → prints tunnel UUID — copy it
 
+# Required: add ~/.cloudflared/config.yml with ingress → http://127.0.0.1:8000
+# (see api/cloudflared-config.example.yml and api/TUNNEL_SETUP.md Step 3)
+
 # Update frontend/supabase-config.js line:
 # window.API_SERVER_URL = 'https://<your-uuid>.cfargotunnel.com';
 

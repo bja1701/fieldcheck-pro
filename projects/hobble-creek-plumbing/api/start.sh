@@ -32,15 +32,38 @@ SERVER_PID=$!
 
 sleep 2  # give server a moment to bind
 
+CLOUDFLARED_HOME="${HOME}/.cloudflared"
+CF_CONFIG="${CLOUDFLARED_CONFIG:-}"
+if [ -z "$CF_CONFIG" ]; then
+  if [ -f "${CLOUDFLARED_HOME}/config.yml" ]; then
+    CF_CONFIG="${CLOUDFLARED_HOME}/config.yml"
+  elif [ -f "${CLOUDFLARED_HOME}/config.yaml" ]; then
+    CF_CONFIG="${CLOUDFLARED_HOME}/config.yaml"
+  fi
+fi
+
 # Start Cloudflare tunnel
 if [ "${TUNNEL_MODE:-named}" = "quick" ]; then
     echo "Starting quick tunnel (random URL — not stable)…"
     cloudflared tunnel --url "http://localhost:$PORT"
 else
+    if [ -z "$CF_CONFIG" ] || [ ! -f "$CF_CONFIG" ]; then
+        echo ""
+        echo "ERROR: Named tunnel needs a Cloudflare config with ingress rules."
+        echo "  Expected: ~/.cloudflared/config.yml (or set CLOUDFLARED_CONFIG)"
+        echo "  Without it, cloudflared logs: 'No ingress rules' and the public URL will not reach this API."
+        echo "  Fix: copy api/cloudflared-config.example.yml to ~/.cloudflared/config.yml"
+        echo "  and set tunnel + credentials-file. See api/TUNNEL_SETUP.md Step 3."
+        echo ""
+        echo "Or use a one-off tunnel (new URL each run):"
+        echo "  TUNNEL_MODE=quick $0"
+        echo ""
+        kill "$SERVER_PID" 2>/dev/null || true
+        exit 1
+    fi
     TUNNEL_NAME="${TUNNEL_NAME:-fieldcheck-api}"
-    echo "Starting named tunnel '$TUNNEL_NAME' (stable URL)…"
-    echo "Your tunnel URL: check ~/.cloudflared/ for the tunnel UUID after first run."
-    cloudflared tunnel run "$TUNNEL_NAME"
+    echo "Starting named tunnel '$TUNNEL_NAME' with config: $CF_CONFIG"
+    cloudflared tunnel --config "$CF_CONFIG" run "$TUNNEL_NAME"
 fi
 
 # Cleanup server when tunnel exits

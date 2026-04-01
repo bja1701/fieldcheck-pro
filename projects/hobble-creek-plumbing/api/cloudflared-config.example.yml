@@ -1,0 +1,12 @@
+# Copy to ~/.cloudflared/config.yml and adjust tunnel UUID + credentials path.
+# cloudflared tunnel create fieldcheck-api creates the JSON file for you.
+#
+#  tunnel ID must match the URL in supabase-config.js:
+#  https://<tunnel-id>.cfargotunnel.com
+
+tunnel: 1aadb92a-fd85-4c76-bac3-368528954a0d
+credentials-file: /REPLACE/WITH/HOME/.cloudflared/1aadb92a-fd85-4c76-bac3-368528954a0d.json
+
+ingress:
+  # Single catch-all: send all tunnel traffic to the local API (must match start.sh PORT)
+  - service: http://127.0.0.1:8000

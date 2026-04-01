@@ -9,7 +9,7 @@ window.SUPABASE_URL     = 'https://ftidlgjmtiyuxycaacob.supabase.co';
 window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0aWRsZ2ptdGl5dXh5Y2FhY29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzM1MTcsImV4cCI6MjA4ODY0OTUxN30.z_v4ygq326LhlXNrdXiGokAISYF9K63_rm2GE2xZzY8';
 
 // API server URL — your named Cloudflare tunnel URL.
-// After running `api/TUNNEL_SETUP.md` step 2, paste your stable tunnel URL here.
+// After `api/TUNNEL_SETUP.md` (tunnel + ~/.cloudflared/config.yml), paste your stable tunnel URL here.
 // Format: https://<your-tunnel-uuid>.cfargotunnel.com
 // This value is permanent once the named tunnel is created.
 window.API_SERVER_URL = 'https://1aadb92a-fd85-4c76-bac3-368528954a0d.cfargotunnel.com'.replace(/\/+$/, '');

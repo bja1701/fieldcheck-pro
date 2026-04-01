@@ -258,7 +258,8 @@
 
                 async pollStatus() {
                     try {
-                        const res = await fetch(`${window.API_SERVER_URL}/api/project-status?id=${this.projectId}`);
+                        const apiBase = (window.API_SERVER_URL || '').replace(/\/+$/, '');
+                        const res = await fetch(`${apiBase}/api/project-status?id=${this.projectId}`, { mode: 'cors', cache: 'no-store' });
                         if (!res.ok) return;
                         this.status = await res.json();
 
@@ -305,9 +306,12 @@
                         clearInterval(this.pollTimer);
 
                         const { data: { session: retrySess } } = await this.supabase.auth.getSession();
-                        await fetch(`${window.API_SERVER_URL}/api/run-pipeline`, {
+                        const apiBase = (window.API_SERVER_URL || '').replace(/\/+$/, '');
+                        await fetch(`${apiBase}/api/run-pipeline`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
+                            mode: 'cors',
+                            cache: 'no-store',
                             body: JSON.stringify({
                                 project_id: this.projectId,
                                 project_name: this.project?.name || 'Untitled',
@@ -319,7 +323,11 @@
 
                         this.pollTimer = setInterval(() => this.pollStatus(), 3000);
                     } catch (e) {
-                        alert('Retry failed: ' + e.message);
+                        let msg = e.message || 'Unknown error';
+                        if (msg === 'Failed to fetch' || e.name === 'TypeError') {
+                            msg = 'Cannot reach ' + window.API_SERVER_URL + '. Start ./projects/hobble-creek-plumbing/api/start.sh on the machine running the pipeline and match API_SERVER_URL in supabase-config.js to your tunnel.';
+                        }
+                        alert('Retry failed: ' + msg);
                     } finally {
                         this.retrying = false;
                     }

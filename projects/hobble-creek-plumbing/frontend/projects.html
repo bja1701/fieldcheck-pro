@@ -103,6 +103,25 @@
             </div>
         </header>
 
+        <!-- Pipeline API must be your machine: FastAPI + cloudflared (see api/start.sh). Vercel only hosts HTML. -->
+        <div x-show="apiHealth !== true" x-cloak
+             class="px-4 py-3 border-b text-sm"
+             :class="apiHealth === null ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-red-50 border-red-200 text-red-900'">
+            <div class="max-w-7xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p x-show="apiHealth === null" class="font-medium">Checking pipeline server…</p>
+                    <div x-show="apiHealth === false">
+                        <p class="font-bold">Pipeline server unreachable</p>
+                        <p class="mt-1 text-xs opacity-90">The app calls <code class="bg-white/50 px-1 rounded" x-text="pipelineApiUrl"></code> — that must be your Cloudflare tunnel while <code class="bg-white/50 px-1 rounded">./projects/hobble-creek-plumbing/api/start.sh</code> is running. Update <code class="bg-white/50 px-1 rounded">supabase-config.js</code> if the tunnel URL changed, or set <code class="bg-white/50 px-1 rounded">localStorage.fieldcheck_api_override</code> (see file comment) to test.</p>
+                    </div>
+                </div>
+                <button type="button" @click="checkPipelineApi()"
+                        class="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-current hover:bg-white/30 transition-colors self-start sm:self-center">
+                    Retry check
+                </button>
+            </div>
+        </div>
+
         <main class="max-w-7xl mx-auto p-4">
 
             <!-- Page header -->
@@ -475,6 +494,8 @@
                 uploadPct: 0,
                 uploadStatus: 'Preparing…',
                 formError: '',
+                /** null = checking, true = /api/health ok, false = unreachable */
+                apiHealth: null,
                 form: {
                     name: '', client: '', address: '', phase: 'rough-in',
                     notes: '', specUrl: '', bidFile: null, plansFile: null, cabinetsFile: null,
@@ -485,12 +506,29 @@
                            this.form.bidFile && this.form.plansFile && this.form.cabinetsFile;
                 },
 
+                get pipelineApiUrl() {
+                    return window.API_SERVER_URL || '(not set)';
+                },
+
+                async checkPipelineApi() {
+                    this.apiHealth = null;
+                    const base = (window.API_SERVER_URL || '').replace(/\/+$/, '');
+                    if (!base) { this.apiHealth = false; return; }
+                    try {
+                        const res = await fetch(`${base}/api/health`, { method: 'GET', cache: 'no-store', mode: 'cors' });
+                        this.apiHealth = res.ok;
+                    } catch (_) {
+                        this.apiHealth = false;
+                    }
+                },
+
                 async init() {
                     this.supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
                     const { data: { session } } = await this.supabase.auth.getSession();
                     if (!session) { window.location.replace('login.html'); return; }
                     this.user = session.user;
                     await this.loadProjects();
+                    this.checkPipelineApi();
                 },
 
                 async loadProjects() {
@@ -557,6 +595,10 @@
                     if (!this.formReady || this.submitting) return;
                     this.submitting = true; this.formError = '';
                     try {
+                        await this.checkPipelineApi();
+                        if (this.apiHealth !== true) {
+                            throw new Error('Pipeline server is offline. Start ./projects/hobble-creek-plumbing/api/start.sh on the machine running the pipeline, or fix API_SERVER_URL / localStorage.fieldcheck_api_override.');
+                        }
                         // 1. Create project
                         this.uploadStatus = 'Creating project…';
                         const { data: project, error: pErr } = await this.supabase
@@ -615,9 +657,12 @@
 
                         // 5. Kick off pipeline (pass access_token so server can upload result to Supabase)
                         const { data: { session: sess } } = await this.supabase.auth.getSession();
-                        const res = await fetch(`${window.API_SERVER_URL}/api/run-pipeline`, {
+                        const apiBase = (window.API_SERVER_URL || '').replace(/\/+$/, '');
+                        const res = await fetch(`${apiBase}/api/run-pipeline`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
+                            mode: 'cors',
+                            cache: 'no-store',
                             body: JSON.stringify({ project_id: pid, project_name: this.form.name.trim(),
                                 spec_url: this.form.specUrl.trim(),
                                 bid_url: signedUrls['bid_spreadsheet'],
@@ -633,7 +678,11 @@
                         window.location.href = `job.html?id=${pid}`;
 
                     } catch (e) {
-                        this.formError = e.message || 'Something went wrong. Please try again.';
+                        let msg = e.message || 'Something went wrong. Please try again.';
+                        if (msg === 'Failed to fetch' || e.name === 'TypeError') {
+                            msg = 'Cannot reach the pipeline server at ' + window.API_SERVER_URL + '. The UI is on Vercel but LangGraph runs on your machine: start ./projects/hobble-creek-plumbing/api/start.sh (FastAPI + Cloudflare tunnel), then confirm API_SERVER_URL in supabase-config.js matches the tunnel.';
+                        }
+                        this.formError = msg;
                     } finally {
                         this.submitting = false; this.uploading = false;
                     }

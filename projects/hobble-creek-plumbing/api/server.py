@@ -179,6 +179,12 @@ def _run_pipeline(req: RunPipelineRequest, tmp_dir: Path) -> None:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+@app.get("/api/health")
+async def health() -> dict[str, str]:
+    """Lightweight check for browsers / uptime monitors (no auth)."""
+    return {"status": "ok"}
+
+
 @app.post("/api/run-pipeline")
 async def run_pipeline(req: RunPipelineRequest) -> dict:
     pid = req.project_id

@@ -112,7 +112,7 @@
                     <p x-show="apiHealth === null" class="font-medium">Checking pipeline server…</p>
                     <div x-show="apiHealth === false">
                         <p class="font-bold">Pipeline server unreachable</p>
-                        <p class="mt-1 text-xs opacity-90">The app calls <code class="bg-white/50 px-1 rounded" x-text="pipelineApiUrl"></code> — that must be your Cloudflare tunnel while <code class="bg-white/50 px-1 rounded">./projects/hobble-creek-plumbing/api/start.sh</code> is running. Update <code class="bg-white/50 px-1 rounded">supabase-config.js</code> if the tunnel URL changed, or set <code class="bg-white/50 px-1 rounded">localStorage.fieldcheck_api_override</code> (see file comment) to test.</p>
+                        <p class="mt-1 text-xs opacity-90">The app calls <code class="bg-white/50 px-1 rounded" x-text="pipelineApiUrl"></code> — that must be your Cloudflare tunnel while <code class="bg-white/50 px-1 rounded">./api/start.sh</code> is running. Update <code class="bg-white/50 px-1 rounded">supabase-config.js</code> if the tunnel URL changed, or set <code class="bg-white/50 px-1 rounded">localStorage.fieldcheck_api_override</code> (see file comment) to test.</p>
                     </div>
                 </div>
                 <button type="button" @click="checkPipelineApi()"
@@ -597,7 +597,7 @@
                     try {
                         await this.checkPipelineApi();
                         if (this.apiHealth !== true) {
-                            throw new Error('Pipeline server is offline. Start ./projects/hobble-creek-plumbing/api/start.sh on the machine running the pipeline, or fix API_SERVER_URL / localStorage.fieldcheck_api_override.');
+                            throw new Error('Pipeline server is offline. Start ./api/start.sh on the machine running the pipeline, or fix API_SERVER_URL / localStorage.fieldcheck_api_override.');
                         }
                         // 1. Create project
                         this.uploadStatus = 'Creating project…';
@@ -680,7 +680,7 @@
                     } catch (e) {
                         let msg = e.message || 'Something went wrong. Please try again.';
                         if (msg === 'Failed to fetch' || e.name === 'TypeError') {
-                            msg = 'Cannot reach the pipeline server at ' + window.API_SERVER_URL + '. The UI is on Vercel but LangGraph runs on your machine: start ./projects/hobble-creek-plumbing/api/start.sh (FastAPI + Cloudflare tunnel), then confirm API_SERVER_URL in supabase-config.js matches the tunnel.';
+                            msg = 'Cannot reach the pipeline server at ' + window.API_SERVER_URL + '. The UI is on Vercel but LangGraph runs on your machine: start ./api/start.sh (FastAPI + Cloudflare tunnel), then confirm API_SERVER_URL in supabase-config.js matches the tunnel.';
                         }
                         this.formError = msg;
                     } finally {

@@ -325,7 +325,7 @@
                     } catch (e) {
                         let msg = e.message || 'Unknown error';
                         if (msg === 'Failed to fetch' || e.name === 'TypeError') {
-                            msg = 'Cannot reach ' + window.API_SERVER_URL + '. Start ./projects/hobble-creek-plumbing/api/start.sh on the machine running the pipeline and match API_SERVER_URL in supabase-config.js to your tunnel.';
+                            msg = 'Cannot reach ' + window.API_SERVER_URL + '. Start ./api/start.sh on the machine running the pipeline and match API_SERVER_URL in supabase-config.js to your tunnel.';
                         }
                         alert('Retry failed: ' + msg);
                     } finally {

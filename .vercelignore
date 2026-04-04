@@ -1,0 +1,30 @@
+# Python backend — never deploy to Vercel (runs locally via systemd + cloudflare tunnel)
+pyproject.toml
+uv.lock
+.python-version
+api/
+nodes/
+graph.py
+state.py
+tests/
+library/
+main.py
+scripts/
+.venv/
+
+# Large local data files
+jobs/
+intermediate/
+artifacts/
+cabinet_images/
+plan_images/
+plan_thumbs/
+spec_images/
+*.pdf
+*.csv
+*.xlsx
+*.xlsm
+*.png
+data.js.backup
+spec_data.js
+generated_data.js

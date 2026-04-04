@@ -7,7 +7,7 @@ Wraps the LangGraph pipeline and exposes two endpoints the Vercel frontend calls
   GET  /api/project-status — poll pipeline progress by project_id
 
 Start with:
-  uv run uvicorn projects.hobble-creek-plumbing.api.server:app --host 0.0.0.0 --port 8000 --reload
+  uv run uvicorn api.server:app --host 0.0.0.0 --port 8000 --reload
 
 Or use api/start.sh which also launches the Cloudflare tunnel.
 """

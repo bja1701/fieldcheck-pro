@@ -5,18 +5,17 @@
 #   ./api/start.sh                        # named tunnel (stable URL, requires setup)
 #   TUNNEL_MODE=quick ./api/start.sh      # quick tunnel (random URL, no setup needed)
 #
-# Run from the nexusflow_builds/ root directory.
+# Run from the fieldcheck-pro repo root directory.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILDS_DIR="$(dirname "$(dirname "$PROJECT_DIR")")"
 
 # Load .env if present (SUPABASE_SERVICE_ROLE, GOOGLE_API_KEY)
-if [ -f "$BUILDS_DIR/.env" ]; then
+if [ -f "$PROJECT_DIR/.env" ]; then
     set -a
-    source "$BUILDS_DIR/.env"
+    source "$PROJECT_DIR/.env"
     set +a
 fi
 
@@ -25,7 +24,7 @@ PORT=8000
 echo "Starting FieldCheck Pro API server on port $PORT…"
 
 # Start uvicorn in background
-uv run uvicorn projects.hobble-creek-plumbing.api.server:app \
+uv run uvicorn api.server:app \
     --host 0.0.0.0 \
     --port "$PORT" &
 SERVER_PID=$!

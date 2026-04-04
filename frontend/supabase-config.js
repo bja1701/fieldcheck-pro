@@ -12,7 +12,7 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // After `api/TUNNEL_SETUP.md` (tunnel + ~/.cloudflared/config.yml), paste your stable tunnel URL here.
 // Format: https://<your-tunnel-uuid>.cfargotunnel.com
 // This value is permanent once the named tunnel is created.
-window.API_SERVER_URL = 'https://1aadb92a-fd85-4c76-bac3-368528954a0d.cfargotunnel.com'.replace(/\/+$/, '');
+window.API_SERVER_URL = 'https://brand-argue-orbit-cache.trycloudflare.com';
 
 // Optional: override without redeploy (browser console):
 // localStorage.setItem('fieldcheck_api_override', 'https://YOUR_TUNNEL.cfargotunnel.com'); location.reload();
